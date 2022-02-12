@@ -1,0 +1,113 @@
+/*
+			Note : Authenticate Zoho Bookings connection by clicking Manage Connection Link at the bottom of the page
+			Replace serviceId and staffId with the ones from your zoho bookings account.
+			*/
+serviceId = 4308314000000027034;
+staffId = 4308314000000026017;
+response = Map();
+if(context_id.equals("schedule"))
+{
+	response.put("action","context");
+	response.put("context_id","schedule");
+	name = answers.get("name").get("text");
+	if(!answers.containsKey("email"))
+	{
+		question = {"name":"email","replies":{"....and your email address?","We'll use this to send you an invite mail"}};
+	}
+	else
+	{
+		email = answers.get("email").get("text");
+		if(!answers.containsKey("phone"))
+		{
+			question = {"name":"phone","replies":{"Can I have your contact number?","Our representative will call you on this number"}};
+		}
+		else
+		{
+			phone = answers.get("phone").get("text");
+			if(!answers.containsKey("company"))
+			{
+				question = {"name":"company","replies":{"Thanks. Which company do you work for?"}};
+			}
+			else
+			{
+				company = answers.get("company").get("text");
+				if(!answers.containsKey("date"))
+				{
+					slots = {"type":"calendar","time":false,"tz":false,"from":"+0","label":"Schedule a meeting","to":"+5","select_label":"Choose a slot"};
+					question = {"name":"date","replies":{"Our sales representative will call you soon.","Would you like to pick a time slot as per your convenience?","Choose a suitable date and time"},"skippable":"true","input":slots};
+				}
+				else
+				{
+					date = answers.get("date");
+					if(!date.get("text").equalsIgnoreCase("-"))
+					{
+						appointmentDate = date.get("text");
+						if(!answers.containKey("slots"))
+						{
+							availableSlots = zoho.bookings.getAvailableSlots(serviceId,staffId,appointmentDate,"zoho_bookings2");
+							slots = availableSlots.get("response").get("returnvalue").get("data");
+							if(slots.isEmpty())
+							{
+								response.put("action","end");
+								response.put("replies",{"Sorry, we don't have a slots for that day"});
+								return response;
+							}
+							else
+							{
+								question = {"name":"slots","replies":{"Please choose the following slots as for your convenience"},"suggestions":slots};
+								response.put("questions",{question});
+								return response;
+							}
+						}
+						else
+						{
+							slots = answers.get("slots").get("text");
+							appointmentDate = appointmentDate + " " + slots + ":00";
+							if(!answers.containsKey("thanks"))
+							{
+								timeZone = "Asia/Calcutta";
+								customerDetails = Map();
+								customerDetails.put("name",name);
+								customerDetails.put("email",email);
+								customerDetails.put("phone_number",phone);
+								apponitmentResponse = zoho.bookings.createAppointment(serviceId,appointmentDate,customerDetails,staffId,timeZone,true,"zoho_bookings2");
+								status = apponitmentResponse.get("response").get("status");
+								if(status.equalsIgnoreCase("success"))
+								{
+									response.put("action","end");
+									response.put("replies",{"You have successfully registered","Have a nice day"});
+									return response;
+								}
+								else
+								{
+									response.put("action","end");
+									response.put("replies",{"Sorry, error occured!"});
+									return response;
+								}
+							}
+							else
+							{
+								response.put("action","end");
+								response.put("replies",{"Have a nice day"});
+								return response;
+							}
+						}
+					}
+					else
+					{
+						response.put("action","end");
+						response.put("replies",{"Have a nice day"});
+						return response;
+					}
+				}
+			}
+		}
+	}
+	response.put("questions",{question});
+}
+else if(context_id.equals("nothing"))
+{
+	response.put("action","end");
+	response.put("replies",{"I'll be here to assist you"});
+}
+return response;
